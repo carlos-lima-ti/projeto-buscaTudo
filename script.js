@@ -851,6 +851,107 @@ if (btnExportarCSV) {
 }
 
 // ========== FUNÇÕES PARA XML NFE ==========
+// Função para extrair CST do produto
+function extrairCST(det, ns) {
+    // Tenta encontrar ICMS
+    let icms = det.getElementsByTagNameNS(ns.nfe, "ICMS")[0];
+    if (!icms) {
+        icms = det.getElementsByTagName("ICMS")[0];
+    }
+    
+    if (icms) {
+        // ICMS pode estar em diferentes tags (ICMS00, ICMS10, ICMS20, ICMS30, ICMS40, ICMS51, ICMS60, ICMS70, ICMS90, etc)
+        const icmsFilhos = icms.children;
+        for (let i = 0; i < icmsFilhos.length; i++) {
+            const filho = icmsFilhos[i];
+            // Procura por tag que contém CST
+            let cstTag = filho.getElementsByTagNameNS(ns.nfe, "CST")[0];
+            if (!cstTag) {
+                cstTag = filho.getElementsByTagName("CST")[0];
+            }
+            
+            if (cstTag) {
+                const cst = cstTag.textContent;
+                // Retorna no formato: ICMS CST:XX
+                return `ICMS:${cst}`;
+            }
+        }
+    }
+    
+    // Se não encontrou ICMS, tenta IPI
+    let ipi = det.getElementsByTagNameNS(ns.nfe, "IPI")[0];
+    if (!ipi) {
+        ipi = det.getElementsByTagName("IPI")[0];
+    }
+    
+    if (ipi) {
+        // Procura CST no IPI
+        let cstTag = ipi.getElementsByTagNameNS(ns.nfe, "CST")[0];
+        if (!cstTag) {
+            cstTag = ipi.getElementsByTagName("CST")[0];
+        }
+        
+        if (cstTag) {
+            const cst = cstTag.textContent;
+            return `IPI:${cst}`;
+        }
+    }
+    
+    // Se não encontrou IPI, tenta PIS
+    let pis = det.getElementsByTagNameNS(ns.nfe, "PIS")[0];
+    if (!pis) {
+        pis = det.getElementsByTagName("PIS")[0];
+    }
+    
+    if (pis) {
+        // PIS pode ter CST em diferentes estruturas
+        let cstTag = null;
+        
+        // Procura em PISAliq, PISNT, PISOutr, etc
+        const pisFilhos = pis.children;
+        for (let i = 0; i < pisFilhos.length; i++) {
+            cstTag = pisFilhos[i].getElementsByTagNameNS(ns.nfe, "CST")[0];
+            if (!cstTag) {
+                cstTag = pisFilhos[i].getElementsByTagName("CST")[0];
+            }
+            if (cstTag) break;
+        }
+        
+        if (cstTag) {
+            const cst = cstTag.textContent;
+            return `PIS:${cst}`;
+        }
+    }
+    
+    // Se não encontrou PIS, tenta COFINS
+    let cofins = det.getElementsByTagNameNS(ns.nfe, "COFINS")[0];
+    if (!cofins) {
+        cofins = det.getElementsByTagName("COFINS")[0];
+    }
+    
+    if (cofins) {
+        // COFINS pode ter CST em diferentes estruturas
+        let cstTag = null;
+        
+        // Procura em COFINSAliq, COFINSNT, COFINSOutr, etc
+        const cofinsFilhos = cofins.children;
+        for (let i = 0; i < cofinsFilhos.length; i++) {
+            cstTag = cofinsFilhos[i].getElementsByTagNameNS(ns.nfe, "CST")[0];
+            if (!cstTag) {
+                cstTag = cofinsFilhos[i].getElementsByTagName("CST")[0];
+            }
+            if (cstTag) break;
+        }
+        
+        if (cstTag) {
+            const cst = cstTag.textContent;
+            return `COFINS:${cst}`;
+        }
+    }
+    
+    return 'CST não encontrado';
+}
+
 // Função para extrair produtos do XML com verificação de duplicatas
 function extrairProdutosXML(xmlString, nomeArquivo) {
     const parser = new DOMParser();
@@ -916,10 +1017,14 @@ function extrairProdutosXML(xmlString, nomeArquivo) {
         }
         
         if (prod) {
+            // Extrai o CST para este produto
+            const cst = extrairCST(produtos[i], ns);
+            
             const produto = {
                 codigo: getTagValue(prod, "cProd"),
                 nome: getTagValue(prod, "xProd"),
                 ncm: getTagValue(prod, "NCM"),
+                cst: cst, // Nova coluna CST
                 cfop: getTagValue(prod, "CFOP"),
                 unidade: getTagValue(prod, "uCom"),
                 quantidade: getTagValue(prod, "qCom"),
@@ -958,14 +1063,15 @@ function exibirTabelaProdutosXml(produtos) {
         <div style="margin-bottom: 15px; padding: 10px; background: #f0f4ff; border-radius: 8px;">
             <strong>Total de produtos únicos:</strong> ${produtos.length}
         </div>
-        <div style="overflow-x: auto;">
-            <table style="width:100%; border-collapse: collapse; min-width: 1200px;">
-                <thead>
-                    <tr style="background: #2563eb; color: white;">
+        <div style="overflow-x: auto; max-height: 500px; overflow-y: auto;">
+            <table style="width:100%; border-collapse: collapse; min-width: 1400px;">
+                <thead style="position: sticky; top: 0; background: #2563eb; color: white;">
+                    <tr>
                         <th style="padding: 12px; text-align: left;">Arquivo</th>
                         <th style="padding: 12px; text-align: left;">Código</th>
                         <th style="padding: 12px; text-align: left;">Produto</th>
                         <th style="padding: 12px; text-align: left;">NCM</th>
+                        <th style="padding: 12px; text-align: left;">CST</th>
                         <th style="padding: 12px; text-align: left;">CFOP</th>
                         <th style="padding: 12px; text-align: left;">GTIN</th>
                         <th style="padding: 12px; text-align: right;">Qtd</th>
@@ -982,12 +1088,22 @@ function exibirTabelaProdutosXml(produtos) {
         const valorUnit = p.valorUnitario ? parseFloat(p.valorUnitario).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '0,00';
         const valorTotal = p.valorTotal ? parseFloat(p.valorTotal).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '0,00';
         
+        // Define cor para o CST baseado no tipo
+        let cstColor = '#333';
+        if (p.cst) {
+            if (p.cst.includes('ICMS:')) cstColor = '#2563eb';
+            else if (p.cst.includes('IPI:')) cstColor = '#7e22ce';
+            else if (p.cst.includes('PIS:')) cstColor = '#b45309';
+            else if (p.cst.includes('COFINS:')) cstColor = '#065f46';
+        }
+        
         html += `
             <tr style="border-bottom: 1px solid #e5e7eb;">
                 <td style="padding: 10px; font-size: 12px;">${p.arquivoOrigem || '---'}</td>
                 <td style="padding: 10px;">${p.codigo || '---'}</td>
                 <td style="padding: 10px;">${p.nome || '---'}</td>
                 <td style="padding: 10px; font-weight: bold; color: #2563eb;">${p.ncm || '---'}</td>
+                <td style="padding: 10px; font-weight: bold; color: ${cstColor};">${p.cst || '---'}</td>
                 <td style="padding: 10px;">${p.cfop || '---'}</td>
                 <td style="padding: 10px; font-family: monospace;">${p.ean || '---'}</td>
                 <td style="padding: 10px; text-align: right;">${quantidade}</td>
@@ -1089,6 +1205,7 @@ function exportarProdutosXmlCSV() {
         'Código',
         'Produto',
         'NCM',
+        'CST',
         'CFOP',
         'GTIN',
         'Quantidade',
@@ -1102,6 +1219,7 @@ function exportarProdutosXmlCSV() {
         `"${p.codigo || ''}"`,
         `"${(p.nome || '').replace(/"/g, '""')}"`,
         p.ncm || '',
+        p.cst || '',
         p.cfop || '',
         p.ean || '',
         p.quantidade ? parseFloat(p.quantidade).toFixed(2).replace('.', ',') : '0,00',

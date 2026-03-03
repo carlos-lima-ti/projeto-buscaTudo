@@ -17,6 +17,7 @@
             <button class="tab-button" onclick="mostrarAba('cnpj')">Busca CNPJ</button>
             <button class="tab-button" onclick="mostrarAba('importar')">Produtos\NCM</button>
             <button class="tab-button" onclick="mostrarAba('xml')">Busca produtos XML</button>
+            <button class="tab-button" onclick="mostrarAba('senha')">Busca Senha</button>
         </div>
 
         <!-- Aba NCM -->
@@ -90,6 +91,22 @@
                 </div>
             </div>
         </div>
+        <!-- Aba Senha -->
+        <div id="abaSenha" class="tab-content hidden">
+            <div class="search-box">
+                <input type="text" id="senhaInput" placeholder="************************">
+                <button id="btnBuscarSenha">Consultar Senha</button>
+            </div>
+            <div id="statusSenha"></div>
+            <ul id="listaResultadosSenha"></ul>
+            <div id="resultadoSenha" class="hidden">
+                <div class="card">
+                    <h3>Resultado da Busca Senha:</h3>
+                    <p><strong>Código:</strong> <span id="resCodigoSenha"></span></p>
+                    <p><strong>Descrição:</strong> <span id="resDescricaoSenha"></span></p>
+                </div>
+            </div>
+        </div>        
     </div>
     <script src="script.js"></script>
 </body>
